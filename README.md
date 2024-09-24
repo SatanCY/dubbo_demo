@@ -101,4 +101,24 @@ public class HelloServiceImpl implements HelloService {
     }
 }
 ```
+---
+#### 解决Dubbo无法发布被事务代理的Service问题
+如果在服务提供者类上加入@Transactional事务控制注解后，服务就发布不成功了。原因是事务控制的底层原理是为服务提供者类创建代理对象，而默认情况下Spring是基于JDK动态代理方式创建代理对象，而此代理对象的完整类名为com.sun.proxy.$Proxy31（最后两位数字不是固定的），导致Dubbo在发布服务前进行包匹配时无法完成匹配，进而没有进行服务的发布。
 
+解决方式操作步骤：
+1. 修改applicationContext-service.xml配置文件，开启事务控制注解支持时指定proxy-target-class属性，值为true。其作用是使用cglib代理方式为Service类创建代理对象
+```xml
+<!--开启事务控制的注解支持-->
+<tx:annotation-driven transaction-manager="transactionManager" proxy-target-class="true"/>
+```
+2. 修改HelloServiceImpl类，在Service注解中加入interfaceClass属性，值为HelloService.class，作用是指定服务的接口类型
+```java
+@Service(interfaceClass = HelloService.class)
+@Transactional
+public class HelloServiceImpl implements HelloService {
+    public String sayHello(String name) {
+        return "hello " + name;
+    }
+}
+```
+此处也是必须要修改的，否则会导致发布的服务接口为SpringProxy，而不是HelloService接口
